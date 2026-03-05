@@ -31,4 +31,4 @@ crawl-ia:
 	python -m scripts.crawl_internet_archive $(args)
 
 worker:
-	celery -A src.core.ingestion.tasks worker --loglevel=info
+	@echo "Celery worker is not configured for this project. Please update the 'worker' target in the Makefile once a Celery app is available."
