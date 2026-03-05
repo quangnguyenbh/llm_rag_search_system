@@ -559,8 +559,9 @@ llm_rag_search_system/
 │   │   ├── crawler/                # Data acquisition
 │   │   │   ├── base.py             # BaseCrawler ABC + CrawlResult
 │   │   │   └── sources/
-│   │   │       ├── internet_archive.py  # IA search + download
-│   │   │       └── manufacturer.py      # Base for per-site adapters
+│   │   │       ├── internet_archive.py      # IA search + download
+│   │   │       ├── huggingface_datasets.py  # HF dataset PDF download
+│   │   │       └── manufacturer.py          # Base for per-site adapters
 │   │   │
 │   │   ├── auth/
 │   │   │   ├── service.py
@@ -605,6 +606,7 @@ llm_rag_search_system/
 │   ├── seed_db.py
 │   ├── bulk_ingest.py             # CLI for bulk document ingestion
 │   ├── crawl_internet_archive.py  # CLI for IA manual downloads
+│   ├── crawl_huggingface.py       # CLI for HuggingFace dataset PDFs
 │   ├── evaluate.py                # Run RAGAS evaluation
 │   └── benchmark.py               # Retrieval quality benchmarks
 │
@@ -641,10 +643,17 @@ These are freely available and legally safe for development and initial product 
 | **Manufacturer Open Portals** | Support docs published publicly (datasheets, install guides) | 10K–30K per OEM | Crawler per manufacturer site |
 | **WikiBooks / Wikidata** | Structured how-to and reference content | 5K–10K | MediaWiki API |
 | **Project Gutenberg / HathiTrust** | Historical technical texts | 5K–10K | Bulk download |
+| **HuggingFace Datasets** | PDF-link datasets (pdfa-eng-wds, fineweb, etc.) | Variable (10K–100K+) | `datasets` library streaming → PDF download |
 
 > **Internet Archive is the primary starting point.** The `InternetArchiveCrawler` module
 > (see `src/core/crawler/sources/internet_archive.py`) is already implemented and can
 > search by collection, media type, and keyword, then download PDFs with metadata sidecars.
+>
+> **HuggingFace Datasets is the second source.** The `HuggingFaceCrawler` module
+> (see `src/core/crawler/sources/huggingface_datasets.py`) streams rows from any HF
+> dataset that has a column containing PDF URLs, validates the response is actual PDF
+> content, and saves files with metadata sidecars. Run with:
+> `python -m scripts.crawl_huggingface --dataset "pixparse/pdfa-eng-wds" --url-column pdf_url`
 
 ### 11.2 Tier 2 — Licensed / Partnership Sources
 
