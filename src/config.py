@@ -14,8 +14,19 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Qdrant
-    qdrant_host: str = "localhost"
+    qdrant_url: str = ""  # Qdrant Cloud URL, e.g. https://xxx.cloud.qdrant.io:6333
+    qdrant_api_key: str = ""  # Qdrant Cloud API key
+    qdrant_host: str = "localhost"  # fallback for local dev
     qdrant_port: int = 6333
+    qdrant_collection: str = "manual_chunks"
+
+    # Embedding (AWS Bedrock)
+    embedding_provider: str = "bedrock"  # "bedrock" | "openai"
+    embedding_model_id: str = "amazon.titan-embed-text-v2:0"
+    embedding_dimensions: int = 1024
+    embedding_batch_size: int = 256
+    embedding_max_retries: int = 3
+    aws_bedrock_region: str = "ap-southeast-1"
 
     # Storage
     storage_backend: str = "local"  # "local", "s3", "gcs"
