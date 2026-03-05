@@ -556,6 +556,12 @@ llm_rag_search_system/
 │   │   │   ├── metadata.py         # Metadata extraction + NER
 │   │   │   └── embedder.py         # Batch embedding
 │   │   │
+│   │   ├── crawler/                # Data acquisition
+│   │   │   ├── base.py             # BaseCrawler ABC + CrawlResult
+│   │   │   └── sources/
+│   │   │       ├── internet_archive.py  # IA search + download
+│   │   │       └── manufacturer.py      # Base for per-site adapters
+│   │   │
 │   │   ├── auth/
 │   │   │   ├── service.py
 │   │   │   ├── jwt.py
@@ -598,8 +604,13 @@ llm_rag_search_system/
 ├── scripts/
 │   ├── seed_db.py
 │   ├── bulk_ingest.py             # CLI for bulk document ingestion
+│   ├── crawl_internet_archive.py  # CLI for IA manual downloads
 │   ├── evaluate.py                # Run RAGAS evaluation
 │   └── benchmark.py               # Retrieval quality benchmarks
+│
+├── data/
+│   ├── raw/                       # Downloaded source documents
+│   └── processed/                 # Post-ingestion artifacts
 │
 ├── evaluation/                    # Quality evaluation
 │   ├── test_sets/                 # Curated Q&A pairs
@@ -607,15 +618,95 @@ llm_rag_search_system/
 │   └── reports/                   # Generated evaluation reports
 │
 └── docs/
+    ├── system_architecture.md     # Detailed system architecture
     ├── api.md                     # API documentation
-    ├── architecture.md            # Architecture decisions
     ├── deployment.md              # Deployment runbook
     └── runbook.md                 # Operations runbook
 ```
 
 ---
 
-## 11. Implementation Phases
+## 11. Data Sourcing Strategy
+
+Building a 400K+ manual corpus requires a phased, multi-source acquisition strategy.
+
+### 11.1 Tier 1 — Open / Public Domain Sources (Start Here)
+
+These are freely available and legally safe for development and initial product launch.
+
+| Source | What You Get | Volume Estimate | Method |
+|---|---|---|---|
+| **Internet Archive** (archive.org) | Out-of-copyright manuals, vintage electronics, military TMs | 50K–100K+ | Advanced Search API → bulk PDF download |
+| **U.S. Government / Military** (everyspec.com, MIL-STD) | Technical manuals, maintenance procedures, spec sheets | 20K–40K | Web scraping, FOIA archives |
+| **Manufacturer Open Portals** | Support docs published publicly (datasheets, install guides) | 10K–30K per OEM | Crawler per manufacturer site |
+| **WikiBooks / Wikidata** | Structured how-to and reference content | 5K–10K | MediaWiki API |
+| **Project Gutenberg / HathiTrust** | Historical technical texts | 5K–10K | Bulk download |
+
+> **Internet Archive is the primary starting point.** The `InternetArchiveCrawler` module
+> (see `src/core/crawler/sources/internet_archive.py`) is already implemented and can
+> search by collection, media type, and keyword, then download PDFs with metadata sidecars.
+
+### 11.2 Tier 2 — Licensed / Partnership Sources
+
+To reach 400K and ensure modern, commercially relevant content:
+
+| Source | What You Get | Access Model |
+|---|---|---|
+| **ManualsLib** | 8M+ manuals across all categories | Partnership / API license |
+| **iFixit** | Repair guides, teardowns, device manuals | Creative Commons (BY-NC-SA) |
+| **Manufacturer partnerships** (OEM programs) | Official service / repair manuals | Revenue-share or bulk license |
+| **Industry associations** (IEEE, SAE, ASHRAE) | Standards and technical publications | Institutional license |
+
+### 11.3 Tier 3 — Community & User-Contributed
+
+Long-tail coverage and freshness:
+
+- **User uploads** — customers upload manuals for devices they own (de-dup against existing corpus).
+- **Crowdsourced metadata correction** — flag wrong manufacturer/model associations.
+- **OCR improvement pipeline** — users report bad OCR; feed corrections back.
+
+### 11.4 Acquisition Pipeline
+
+```
+┌──────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐
+│  Source   │───▶│   Crawler    │───▶│  De-dup &    │───▶│ Ingestion│
+│ (IA, OEM) │    │  (per-source)│    │  Validation  │    │ Pipeline │
+└──────────┘    └──────────────┘    └──────────────┘    └──────────┘
+                   │                    │
+                   ▼                    ▼
+              metadata.json        quality score
+              (title, author,      (OCR confidence,
+               year, format)        page count, lang)
+```
+
+**Quality gates before ingestion:**
+1. **De-duplication** — SHA-256 content hash + fuzzy title matching to avoid indexing the same manual twice.
+2. **Language detection** — Reject non-English documents (Phase 1); expand later.
+3. **OCR quality score** — Run a sample page through Tesseract; reject if character confidence < 70%.
+4. **Minimum content threshold** — Reject documents with < 2 pages or < 500 characters of extractable text.
+
+### 11.5 Licensing & Legal Considerations
+
+| Source Type | License / Right | Action Required |
+|---|---|---|
+| Public domain (pre-1929, US gov) | Free use | None — ingest directly |
+| Creative Commons (BY, BY-SA) | Attribution required | Store license metadata, display attribution |
+| CC Non-Commercial (BY-NC-SA) | Non-commercial only | OK for free tier; review for paid tiers |
+| Manufacturer-published support docs | Fair use / implied license | Respect robots.txt, link back to source |
+| Licensed / partnership content | Per-agreement | Separate storage, access controls per contract |
+
+### 11.6 Corpus Growth Roadmap
+
+| Phase | Target Corpus Size | Primary Sources |
+|---|---|---|
+| Phase 1 (Foundation) | 1K–5K | Internet Archive, US Gov/MIL |
+| Phase 2 (Hybrid Retrieval) | 10K–50K | + Manufacturer portals, iFixit |
+| Phase 3 (Scale) | 50K–200K | + ManualsLib partnership, bulk OEM deals |
+| Phase 4 (Full Corpus) | 200K–400K+ | + User uploads, community, long-tail crawling |
+
+---
+
+## 12. Implementation Phases
 
 ### Phase 1 — Foundation (Weeks 1-4)
 
@@ -726,7 +817,7 @@ llm_rag_search_system/
 
 ---
 
-## 12. Key Technical Decisions to Validate Early
+## 13. Key Technical Decisions to Validate Early
 
 | Decision | Validation Method | When |
 |---|---|---|
@@ -740,7 +831,7 @@ llm_rag_search_system/
 
 ---
 
-## 13. Risk Register
+## 14. Risk Register
 
 | Risk | Impact | Mitigation |
 |---|---|---|
@@ -754,7 +845,7 @@ llm_rag_search_system/
 
 ---
 
-## 14. Success Metrics
+## 15. Success Metrics
 
 | Metric | Target | How to Measure |
 |---|---|---|
@@ -766,6 +857,14 @@ llm_rag_search_system/
 | Cost per query | < $0.05 avg | Cost tracking |
 | Uptime | 99.9% | Monitoring |
 | Ingestion throughput | > 1000 docs/hour | Pipeline metrics |
+
+---
+
+## 16. References
+
+| # | Title | Link | Topic |
+|---|---|---|---|
+| 1 | Comparing SPLADE Sparse Vectors with BM25 | [Medium — Zilliz](https://medium.com/@zilliz_learn/comparing-splade-sparse-vectors-with-bm25-53368877359f) | Sparse retrieval, SPLADE vs BM25 |
 
 ---
 
