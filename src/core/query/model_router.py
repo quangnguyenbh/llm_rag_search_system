@@ -1,17 +1,17 @@
-"""Route queries to the appropriate LLM based on complexity and type."""
+"""Route queries to the appropriate Claude model on Bedrock based on complexity."""
 
 from src.core.query.analyzer import QueryAnalysis
 
 
-# Model tiers
-TIER_FAST = "fast"    # Haiku / GPT-4o-mini
-TIER_STANDARD = "standard"  # Sonnet / GPT-4o
-TIER_HEAVY = "heavy"  # Opus / GPT-4o (complex reasoning)
+# Model tiers — using Bedrock cross-region inference model IDs
+TIER_FAST = "fast"
+TIER_STANDARD = "standard"
+TIER_HEAVY = "heavy"
 
 MODEL_MAP = {
-    TIER_FAST: "claude-3-5-haiku-20241022",
-    TIER_STANDARD: "claude-4-sonnet-20250514",
-    TIER_HEAVY: "claude-4-sonnet-20250514",
+    TIER_FAST: "us.amazon.nova-micro-v1:0",
+    TIER_STANDARD: "us.amazon.nova-2-lite-v1:0",
+    TIER_HEAVY: "us.amazon.nova-2-lite-v1:0",
 }
 
 
@@ -28,7 +28,6 @@ class ModelRouter:
         else:
             tier = TIER_HEAVY
 
-        # Override for table-heavy queries
         if analysis.intent == "comparative":
             tier = TIER_STANDARD
 

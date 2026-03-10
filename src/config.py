@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     debug: bool = True
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:8080", "http://localhost:8000", "null"]
 
     # Database
     database_url: str = "postgresql+asyncpg://rag_user:rag_password@localhost:5432/rag_search"
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     embedding_model_id: str = "amazon.titan-embed-text-v2:0"
     embedding_dimensions: int = 1024
     embedding_batch_size: int = 256
-    embedding_max_retries: int = 3
+    embedding_max_retries: int = 5
     aws_bedrock_region: str = "ap-southeast-1"
 
     # Storage

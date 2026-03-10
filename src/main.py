@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import query, documents, auth, billing, admin
 from src.config import settings
@@ -30,6 +33,11 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health():
         return {"status": "ok"}
+
+    # Serve dashboard UI at / (must be last — catch-all)
+    dashboard_dir = Path(__file__).resolve().parent.parent / "dashboard"
+    if dashboard_dir.is_dir():
+        app.mount("/", StaticFiles(directory=str(dashboard_dir), html=True), name="dashboard")
 
     return app
 

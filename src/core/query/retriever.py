@@ -1,6 +1,13 @@
-"""Hybrid retrieval: dense vector search + sparse (SPLADE/BM25) with RRF fusion."""
+"""Dense vector retrieval via Qdrant."""
 
 from dataclasses import dataclass
+
+import structlog
+
+from src.core.ingestion.embedder import BatchEmbedder
+from src.db.vector.qdrant_client import search_chunks
+
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -10,54 +17,49 @@ class RetrievedChunk:
     text: str
     score: float
     metadata: dict
-    chunk_type: str = "text"  # "text" or "table"
+    chunk_type: str = "text"
 
 
-class HybridRetriever:
-    def __init__(self, qdrant_client, dense_collection: str, sparse_collection: str | None = None):
+class Retriever:
+    def __init__(self, qdrant_client, embedder: BatchEmbedder):
         self.qdrant = qdrant_client
-        self.dense_collection = dense_collection
-        self.sparse_collection = sparse_collection
+        self.embedder = embedder
 
     async def search(
         self,
         query: str,
         filters: dict | None = None,
-        top_k: int = 50,
+        top_k: int = 10,
     ) -> list[RetrievedChunk]:
-        """Execute hybrid search and fuse results with RRF."""
-        # TODO: Embed query (dense)
-        # TODO: Encode query (sparse / SPLADE)
-        # TODO: Dense search in Qdrant
-        # TODO: Sparse search in Qdrant
-        # TODO: Table collection search
-        # TODO: Apply metadata filters
-        # TODO: Reciprocal Rank Fusion
-        return []
+        """Embed query and search Qdrant for similar chunks."""
+        query_vector = await self.embedder.embed_query(query)
 
-    def _reciprocal_rank_fusion(
-        self,
-        result_lists: list[list[RetrievedChunk]],
-        k: int = 60,
-    ) -> list[RetrievedChunk]:
-        """Fuse multiple ranked lists using RRF(k)."""
-        scores: dict[str, float] = {}
-        chunk_map: dict[str, RetrievedChunk] = {}
+        document_id = filters.get("document_id") if filters else None
 
-        for results in result_lists:
-            for rank, chunk in enumerate(results):
-                scores[chunk.chunk_id] = scores.get(chunk.chunk_id, 0) + 1 / (k + rank + 1)
-                chunk_map[chunk.chunk_id] = chunk
+        hits = search_chunks(
+            client=self.qdrant,
+            query_vector=query_vector,
+            limit=top_k,
+            document_id=document_id,
+        )
 
-        sorted_ids = sorted(scores, key=lambda cid: scores[cid], reverse=True)
-        return [
-            RetrievedChunk(
-                chunk_id=cid,
-                document_id=chunk_map[cid].document_id,
-                text=chunk_map[cid].text,
-                score=scores[cid],
-                metadata=chunk_map[cid].metadata,
-                chunk_type=chunk_map[cid].chunk_type,
+        results = []
+        for hit in hits:
+            payload = hit.get("payload", {})
+            results.append(
+                RetrievedChunk(
+                    chunk_id=hit["id"],
+                    document_id=payload.get("document_id", ""),
+                    text=payload.get("text", ""),
+                    score=hit["score"],
+                    metadata={
+                        "title": payload.get("title", ""),
+                        "page_number": payload.get("page_number"),
+                        "section_path": payload.get("section_path", ""),
+                        "source_file": payload.get("source_file", ""),
+                    },
+                )
             )
-            for cid in sorted_ids
-        ]
+
+        logger.info("retriever.search_complete", query_len=len(query), results=len(results))
+        return results

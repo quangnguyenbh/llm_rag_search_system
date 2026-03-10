@@ -2,6 +2,7 @@
 
 import json
 import asyncio
+import random
 
 import boto3
 import structlog
@@ -52,52 +53,59 @@ class BatchEmbedder:
         return all_embeddings
 
     async def _embed_batch_with_retry(self, texts: list[str]) -> list[list[float]]:
-        """Embed a single batch with exponential backoff retry."""
-        for attempt in range(self.max_retries):
-            try:
-                if self.provider == "bedrock":
-                    return await self._embed_bedrock(texts)
-                else:
-                    raise ValueError(f"Unsupported embedding provider: {self.provider}")
-            except Exception as e:
-                if attempt == self.max_retries - 1:
-                    raise
-                wait = 2 ** attempt
-                logger.warning(
-                    "embedder.retry",
-                    attempt=attempt + 1,
-                    wait=wait,
-                    error=str(e),
-                )
-                await asyncio.sleep(wait)
-        return []  # unreachable
+        """Embed a single batch with per-text retry."""
+        if self.provider == "bedrock":
+            return await self._embed_bedrock(texts)
+        else:
+            raise ValueError(f"Unsupported embedding provider: {self.provider}")
 
     async def _embed_bedrock(self, texts: list[str]) -> list[list[float]]:
-        """Call Amazon Titan Embed V2 via Bedrock for a batch of texts."""
+        """Call Amazon Titan Embed V2 via Bedrock for a batch of texts.
+
+        Each text is embedded individually with per-call retry + jitter
+        to handle Bedrock throttling gracefully.
+        """
         client = self._get_bedrock_client()
         loop = asyncio.get_event_loop()
-
-        # Titan Embed V2 processes one text at a time — parallelize with threads
         embeddings: list[list[float]] = []
+
         for text in texts:
             body = json.dumps({
                 "inputText": text,
                 "dimensions": self.dimensions,
                 "normalize": True,
             })
-            response = await loop.run_in_executor(
-                None,
-                lambda b=body: client.invoke_model(
-                    modelId=self.model_id,
-                    body=b,
-                    contentType="application/json",
-                    accept="application/json",
-                ),
-            )
-            result = json.loads(response["body"].read())
-            embeddings.append(result["embedding"])
+            embedding = await self._invoke_with_retry(client, loop, body)
+            embeddings.append(embedding)
 
         return embeddings
+
+    async def _invoke_with_retry(self, client, loop, body: str) -> list[float]:
+        """Single invoke_model call with exponential backoff + jitter."""
+        for attempt in range(self.max_retries):
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda b=body: client.invoke_model(
+                        modelId=self.model_id,
+                        body=b,
+                        contentType="application/json",
+                        accept="application/json",
+                    ),
+                )
+                result = json.loads(response["body"].read())
+                return result["embedding"]
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    raise
+                wait = (2 ** attempt) + random.uniform(0, 1)
+                logger.warning(
+                    "embedder.retry",
+                    attempt=attempt + 1,
+                    wait=round(wait, 1),
+                    error=str(e),
+                )
+                await asyncio.sleep(wait)
 
     async def embed_query(self, text: str) -> list[float]:
         """Embed a single query text."""
