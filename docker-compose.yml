@@ -4,6 +4,16 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      # Phase 2 — Hybrid Retrieval & Tables
+      # Override any of these in .env or as Docker env vars:
+      # COHERE_API_KEY=<your-cohere-key>          # enables Cohere Rerank (rerank-english-v3.0)
+      # HYBRID_RETRIEVAL_ENABLED=true             # dense + sparse + table hybrid search (default: true)
+      # QDRANT_TABLES_COLLECTION=rag_tables       # Qdrant collection for table chunks (default: rag_tables)
+      # QUERY_CACHE_TTL=3600                      # Redis query cache TTL in seconds (default: 3600)
+      HYBRID_RETRIEVAL_ENABLED: ${HYBRID_RETRIEVAL_ENABLED:-true}
+      QDRANT_TABLES_COLLECTION: ${QDRANT_TABLES_COLLECTION:-rag_tables}
+      QUERY_CACHE_TTL: ${QUERY_CACHE_TTL:-3600}
     depends_on:
       postgres:
         condition: service_healthy

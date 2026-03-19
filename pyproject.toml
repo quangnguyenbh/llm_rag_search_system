@@ -14,7 +14,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.35",
     "asyncpg>=0.30.0",
     "alembic>=1.13.0",
-    "redis>=5.1.0",
+    "redis[asyncio]>=5.1.0",
     "celery[redis]>=5.4.0",
     "httpx>=0.27.0",
     "boto3>=1.35.0",
@@ -36,6 +36,7 @@ dependencies = [
     "internetarchive>=4.1.0",
     "datasets>=3.0.0",
     "huggingface-hub>=0.25.0",
+    "cohere>=4.0.0",
 ]
 
 [project.optional-dependencies]

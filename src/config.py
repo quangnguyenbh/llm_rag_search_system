@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
+    query_cache_ttl: int = 3600  # seconds; configurable via QUERY_CACHE_TTL env var
 
     # Qdrant
     qdrant_url: str = ""  # Qdrant Cloud URL, e.g. https://xxx.cloud.qdrant.io:6333
@@ -19,6 +20,10 @@ class Settings(BaseSettings):
     qdrant_host: str = "localhost"  # fallback for local dev
     qdrant_port: int = 6333
     qdrant_collection: str = "manual_chunks"
+    qdrant_tables_collection: str = "rag_tables"  # separate collection for table chunks
+
+    # Hybrid retrieval
+    hybrid_retrieval_enabled: bool = True  # enable dense + sparse + table hybrid search
 
     # Embedding (AWS Bedrock)
     embedding_provider: str = "bedrock"  # "bedrock" | "openai"
@@ -40,6 +45,9 @@ class Settings(BaseSettings):
 
     # Anthropic
     anthropic_api_key: str = ""
+
+    # Cohere (for reranking)
+    cohere_api_key: str = ""  # COHERE_API_KEY env var; leave empty to use fallback reranker
 
     # Stripe
     stripe_secret_key: str = ""
